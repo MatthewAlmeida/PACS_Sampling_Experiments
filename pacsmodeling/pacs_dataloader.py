@@ -107,20 +107,31 @@ class PACSDatasetMultipleDomain(torch.utils.data.ConcatDataset):
         self._normalize = normalize
         self._meta = PACSMetadata(pacs_root=pacs_root)
 
-        domains = [dname for dname in meta.domain_names if not dname == holdout_domain]
+        domain_names = [dname for dname in self._meta.domain_names if not dname == holdout_domain]
 
         # Assemble domains as a list of Dataset objects
         datasets = []
-        self._start_indices = []
+        self._dataset_lengths = []
 
-        for dname in domains:
+        for dname in domain_names:
             domain = PACSDatasetSingleDomain(
                     dname, split_name, normalize, pacs_root
                 )
 
             datasets.append(domain)
-            self._start_indices.append(len(domain))
+            self._dataset_lengths.append(len(domain))
 
-        super.__init__(
+        si_cursor = 0
+        self._split_indices = []
+
+        for dom_len in self._dataset_lengths:
+            self._split_indices.append(dom_len + si_cursor)
+            si_cursor += dom_len
+        
+        super().__init__(
             datasets
         )
+
+    @property
+    def split_indices(self):
+        return self._split_indices
