@@ -107,13 +107,13 @@ class PACSDatasetMultipleDomain(torch.utils.data.ConcatDataset):
         self._normalize = normalize
         self._meta = PACSMetadata(pacs_root=pacs_root)
 
-        domain_names = [dname for dname in self._meta.domain_names if not dname == holdout_domain]
+        self._domain_names = [dname for dname in self._meta.domain_names if not dname == holdout_domain]
 
         # Assemble domains as a list of Dataset objects
         datasets = []
         self._dataset_lengths = []
 
-        for dname in domain_names:
+        for dname in self._domain_names:
             domain = PACSDatasetSingleDomain(
                     dname, split_name, normalize, pacs_root
                 )
@@ -128,6 +128,10 @@ class PACSDatasetMultipleDomain(torch.utils.data.ConcatDataset):
             self._split_indices.append(dom_len + si_cursor)
             si_cursor += dom_len
         
+        # Inherits constructor from torch's ConcatDataset. Passing the 
+        # list of datasets allows us to use the superclass definitions
+        # of __len__ and __getitem__. This class exists to hold on to 
+        # metadata about the original domains in the ConcatDataset.
         super().__init__(
             datasets
         )
@@ -135,3 +139,11 @@ class PACSDatasetMultipleDomain(torch.utils.data.ConcatDataset):
     @property
     def split_indices(self):
         return self._split_indices
+
+    @property
+    def domain_names(self):
+        return self._domain_names
+
+    @property
+    def split_name(self):
+        return self._split_name
