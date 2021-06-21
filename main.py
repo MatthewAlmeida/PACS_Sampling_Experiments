@@ -108,9 +108,6 @@ if __name__ == "__main__":
     # Train model
     trainer.fit(model)
 
-
-    print(checkpoint_callback.best_model_path)
-
     if args.test:
         trainer.test(
             ckpt_path="best",

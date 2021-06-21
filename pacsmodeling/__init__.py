@@ -1,5 +1,6 @@
 from .pacs_dataloader import (
-    PACSDatasetSingleDomain, PACSDatasetMultipleDomain
+    PACSDatasetSingleDomain, PACSDatasetMultipleDomain,
+    PACSSamplerSingleDomainPerBatch
 )
 from .pacs_lightning import (
     PACSLightning

@@ -1,8 +1,9 @@
-from typing import List, Union
+from typing import List, Sized, Union
 
 import h5py
 import numpy as np
 import os
+import warnings
 
 from pathlib import Path
 from .pacs_utils import (
@@ -10,6 +11,10 @@ from .pacs_utils import (
 )
 
 import torch
+from torch.utils.data import (
+    RandomSampler, BatchSampler, Dataset,
+    ConcatDataset
+)
 
 def _get_torchvision_means_stds():
     """
@@ -54,7 +59,7 @@ def _preprocess_label(lbl):
     """
     return lbl - 1
 
-class PACSDatasetSingleDomain(torch.utils.data.Dataset):
+class PACSDatasetSingleDomain(Dataset):
     def __init__(self, 
         domain_name:str, split_name:str, 
         normalize: bool = True,
@@ -98,7 +103,7 @@ class PACSDatasetSingleDomain(torch.utils.data.Dataset):
                 )                
             )
 
-class PACSDatasetMultipleDomain(torch.utils.data.ConcatDataset):
+class PACSDatasetMultipleDomain(ConcatDataset):
     def __init__(self, holdout_domain:str, split_name:str, 
         normalize:bool=True, pacs_root: Union[str, Path] = None
     ) -> None:
@@ -147,3 +152,74 @@ class PACSDatasetMultipleDomain(torch.utils.data.ConcatDataset):
     @property
     def split_name(self):
         return self._split_name
+
+class PACSSamplerSingleDomainPerBatch(BatchSampler):
+    """
+    This sampler does the heavy lifting for homogenous batches - each
+    batch contains data from only a single domain. This Sampler uses the 
+    metadata stored in a PACSDatasetMultipleDomain object to coordinate 
+    the iteration over the data. 
+
+    The __iter__ method selects a domain at random, then ensures that the
+    next batch_size calls to next() return indices that map into the selected
+    domain.
+    """
+    def __init__(self, data_source: Sized, batch_size: int, drop_last: bool):
+        self.data_source = data_source
+        self.batch_size = batch_size
+        self.drop_last = drop_last
+        self.failover_sampler = None
+
+        if not isinstance(self.data_source, PACSDatasetMultipleDomain):
+            warnings.warn(f"Provided data source is not an instance of "
+                f"PACSDatasetMultipleDomain. Sampling will default to "
+                f"standard random sampling."
+            )
+            self.failover_sampler = BatchSampler(
+                RandomSampler(self.data_source, replacement=False), 
+                self.batch_size,
+                self.drop_last
+            )            
+        else:
+            # data_source is a PACSDatasetMultipleDomain, therefore
+            # has the metadata we need.
+            self.split_indices = self.data_source.split_indices
+
+    def __iter__(self):
+        # Did the validation check fail in __init__?
+        # if so, return an iterator from a standard random
+        # sampler.
+        if self.failover_sampler:
+            return iter(self.failover_sampler)
+
+        offset = 0
+        self.splits = []
+
+        for i, split_len in enumerate(self.split_indices):
+            # torch.randperm generates a random permutation from
+            # 0 to n - 1. This little move with the offset places
+            # the permutation in the desired range: [offset, split_len)
+            self.splits.append(
+                torch.randperm(split_len - offset) + offset
+            )
+            offset = split_len
+
+        self.n_splits = len(self.splits)
+
+        self.cursors = [0 for split in self.splits]
+        self.active_splits = list(range(self.n_splits))
+
+        while self.active_splits:
+            chosen_split = np.random.choice(self.active_splits)
+            chosen_cursor = self.cursors[chosen_split]
+
+            # Is there enough data to yield a full batch?
+            if chosen_cursor + self.batch_size < len(self.splits[chosen_split]):
+                yield self.splits[chosen_split][chosen_cursor: chosen_cursor + self.batch_size]
+                self.cursors[chosen_split] += self.batch_size
+            else:
+                # If we're keeping the last few examples, yield the reduced batch.
+                if not self.drop_last:
+                    yield self.splits[chosen_split][chosen_cursor:] 
+                # We ran out of 
+                self.active_splits.remove(chosen_split)

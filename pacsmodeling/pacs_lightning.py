@@ -3,7 +3,8 @@ from argparse import ArgumentParser
 
 from .pacs_dataloader import (
     PACSDatasetSingleDomain,
-    PACSDatasetMultipleDomain
+    PACSDatasetMultipleDomain,
+    PACSSamplerSingleDomainPerBatch
 )
 
 import pytorch_lightning as pl
@@ -65,6 +66,10 @@ class PACSLightning(pl.LightningModule):
         parser.add_argument("--dataloader_workers",type=int,
             default=0
         )
+        parser.add_argument(
+            "--use_sds", action="store_true",
+            help="Use this flag to activate single domain sampling."
+        )
 
         return parser
 
@@ -96,7 +101,26 @@ class PACSLightning(pl.LightningModule):
             self.hparam_namespace.domain_name, "test"
         )
 
+        # Use our custom sampler if the single domain sampling
+        # flag is set.
+        if self.hparam_namespace.use_sds:
+            self._sds_sampler = PACSSamplerSingleDomainPerBatch(
+                self._datasets["train"],
+                self.hparam_namespace.batch_size
+            )
+
     def _get_dataloader(self, split:str) -> torch.utils.data.DataLoader:
+        # If using single domain sampling, pass the _sds_sampler to the
+        # Dataloader as a BatchSampler. In all other cases, pass no 
+        # Sampler / BatchSampler.
+
+        if self.hparam_namespace.use_sds:
+            return torch.utils.data.DataLoader(
+                self._datasets[split], 
+                batch_sampler = self._sds_sampler,                
+                num_workers = self.hparam_namespace.dataloader_workers
+            )
+
         return torch.utils.data.DataLoader(
             self._datasets[split], 
             batch_size = self.hparam_namespace.batch_size,
