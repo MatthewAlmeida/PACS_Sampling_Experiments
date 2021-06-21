@@ -66,6 +66,9 @@ class PACSLightning(pl.LightningModule):
         parser.add_argument("--dataloader_workers",type=int,
             default=0
         )
+        parser.add_argument("--drop_last", action="store_true",
+            help="Use this flag to tell the sampler to drop incomplete batches."
+        )
         parser.add_argument(
             "--use_sds", action="store_true",
             help="Use this flag to activate single domain sampling."
@@ -106,15 +109,17 @@ class PACSLightning(pl.LightningModule):
         if self.hparam_namespace.use_sds:
             self._sds_sampler = PACSSamplerSingleDomainPerBatch(
                 self._datasets["train"],
-                self.hparam_namespace.batch_size
+                self.hparam_namespace.batch_size,
+                drop_last=self.hparam_namespace.drop_last
             )
 
     def _get_dataloader(self, split:str) -> torch.utils.data.DataLoader:
-        # If using single domain sampling, pass the _sds_sampler to the
-        # Dataloader as a BatchSampler. In all other cases, pass no 
-        # Sampler / BatchSampler.
+        # If using only single domain sampling for training, pass the 
+        # _sds_sampler to the Dataloader as a BatchSampler. In all other 
+        # cases, pass no Sampler / BatchSampler.
 
-        if self.hparam_namespace.use_sds:
+        if self.hparam_namespace.use_sds and split == "train":
+            print("Using single domain sampling...")
             return torch.utils.data.DataLoader(
                 self._datasets[split], 
                 batch_sampler = self._sds_sampler,                
@@ -124,7 +129,6 @@ class PACSLightning(pl.LightningModule):
         return torch.utils.data.DataLoader(
             self._datasets[split], 
             batch_size = self.hparam_namespace.batch_size,
-            shuffle=True,
             num_workers = self.hparam_namespace.dataloader_workers
         )
 
@@ -133,11 +137,12 @@ class PACSLightning(pl.LightningModule):
             self.parameters(), lr=self.hparam_namespace.learning_rate
         )
 
+        # 1000 is the default used by pytorch-lightning.
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr=self.hparam_namespace.learning_rate,
             steps_per_epoch=len(self._datasets["train"]),
-            epochs=self.hparam_namespace.max_epochs
+            epochs=self.trainer.max_epochs
         )
 
         return {

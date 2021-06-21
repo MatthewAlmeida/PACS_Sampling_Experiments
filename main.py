@@ -114,4 +114,4 @@ if __name__ == "__main__":
             verbose=True
         )
 
-    print(model.confusion_matrix.compute())
+        print(model.confusion_matrix.compute())

@@ -185,6 +185,22 @@ class PACSSamplerSingleDomainPerBatch(BatchSampler):
             # has the metadata we need.
             self.split_indices = self.data_source.split_indices
 
+    def __len__(self):
+        offset = 0
+        ttl_length = 0
+
+        for split_idx in self.split_indices:
+            ttl_length += (split_idx - offset) // self.batch_size
+            offset = split_idx
+
+            # We send the remaining examples as an incomplete
+            # batch depending on the value of drop_last. Account for that
+            # setting here.
+            if not self.drop_last:
+                ttl_length += 1
+
+        return ttl_length
+
     def __iter__(self):
         # Did the validation check fail in __init__?
         # if so, return an iterator from a standard random
@@ -195,14 +211,14 @@ class PACSSamplerSingleDomainPerBatch(BatchSampler):
         offset = 0
         self.splits = []
 
-        for i, split_len in enumerate(self.split_indices):
+        for split_idx in self.split_indices:
             # torch.randperm generates a random permutation from
             # 0 to n - 1. This little move with the offset places
             # the permutation in the desired range: [offset, split_len)
             self.splits.append(
-                torch.randperm(split_len - offset) + offset
+                torch.randperm(split_idx - offset) + offset
             )
-            offset = split_len
+            offset = split_idx
 
         self.n_splits = len(self.splits)
 
@@ -220,6 +236,6 @@ class PACSSamplerSingleDomainPerBatch(BatchSampler):
             else:
                 # If we're keeping the last few examples, yield the reduced batch.
                 if not self.drop_last:
-                    yield self.splits[chosen_split][chosen_cursor:] 
+                    yield self.splits[chosen_split][chosen_cursor:]
                 # We ran out of 
                 self.active_splits.remove(chosen_split)
