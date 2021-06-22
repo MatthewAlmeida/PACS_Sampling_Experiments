@@ -83,7 +83,7 @@ if __name__ == "__main__":
             monitor="valid_loss",
             save_top_k=1,
             period=2,
-            filename= args.experiment_name + "{epoch}"
+            filename=f"{args.experiment_name}-{args.random_seed}-" + "{epoch}"
         )
     ]
 
