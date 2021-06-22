@@ -9,6 +9,15 @@ from dotenv import (
     load_dotenv, find_dotenv
 )
 
+def results_save_filename(argument_namespace):
+    if argument_namespace.use_sds:
+        sds_str = "sds"
+    else:
+        sds_str = "nosds"
+    return Path(
+        f"results/{sds_str}/cm-random-seed-{argument_namespace.random_seed}-{sds_str}.pt"
+    )
+
 def resolve_PACS_root(pacs_root: str = None) -> Path:
     """
     If a pacs_root argument is not passed to a function,

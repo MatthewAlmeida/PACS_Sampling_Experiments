@@ -5,12 +5,15 @@ from dotenv import (
 )
 from pathlib import Path
 
+import os
+import torch
+
 import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 
-import os
-
-from pacsmodeling import PACSLightning
+from pacsmodeling import (
+    PACSLightning, results_save_filename
+)
 
 """ 
 ---------------------------------------------
@@ -46,10 +49,13 @@ parser.add_argument(
     default = os.getenv("TENSORBOARD_PORT") or 6006
 )
 parser.add_argument(
-    "--test", type=bool,
-    default = False
+    "--no_logging", action="store_true",
+    help = "Use this flag to disable logging / Tensorboard."
 )
-
+parser.add_argument(
+    "--save_cm", action="store_true",
+    help= "Use this flag to save the confusion matrix."
+)
 # Go get necessary arguments from the modeling module
 # (See PACS_Modeling/PACS_Module.py)
 parser = PACSLightning.add_model_specific_args(parser)
@@ -71,34 +77,44 @@ if __name__ == "__main__":
     # Set random seed according to argument
     pl.seed_everything(args.random_seed)
 
+    callbacks = [
+        pl.callbacks.ModelCheckpoint(
+            dirpath=args.chkpt_dir,
+            monitor="valid_loss",
+            save_top_k=1,
+            period=2,
+            filename= args.experiment_name + "{epoch}"
+        )
+    ]
+
     # Explicit logger configuration
-    tb_logger = pl.loggers.TensorBoardLogger(
-        args.log_dir,
-        name=args.experiment_name
-    )
+    if args.no_logging:
+        # PL take False as an argument for the logger
+        # to mean "turn off logging".
+        #
+        # We do not add the LR monitor callback in this
+        # case.
+        tb_logger=False
+    else:
+        # Explictly create logger; add LR monitor
+        # to callbacks (LRM does not work without a 
+        # logger)
+        tb_logger = pl.loggers.TensorBoardLogger(
+            args.log_dir,
+            name=args.experiment_name
+        )
 
-    # -------------------------------------------------
-    # Callbacks
-    # -------------------------------------------------
-
-    # Checkpoint model on validation loss
-    checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        dirpath=args.chkpt_dir,
-        monitor="valid_loss",
-        save_top_k=1,
-        period=2,
-        filename= args.experiment_name + "{epoch}"
-    )
-
-    lr_monitor_callback = pl.callbacks.LearningRateMonitor(
-        log_momentum = True
-    )
+        callbacks.append(
+            pl.callbacks.LearningRateMonitor(
+                log_momentum = True
+            )
+        )    
 
     # Get trainer with arguments; register callbacks
     trainer = Trainer.from_argparse_args(
         args, 
         logger=tb_logger, 
-        callbacks=[checkpoint_callback, lr_monitor_callback],
+        callbacks=callbacks,
         deterministic=True
     )
     
@@ -108,10 +124,18 @@ if __name__ == "__main__":
     # Train model
     trainer.fit(model)
 
-    if args.test:
-        trainer.test(
-            ckpt_path="best",
-            verbose=True
-        )
+    trainer.test(
+        ckpt_path="best",
+        verbose=True
+    )
 
-        print(model.confusion_matrix.compute())
+    results_tensor = model.confusion_matrix.compute()
+
+    # Write results to console
+    print(results_tensor)
+
+    if args.save_cm:
+        torch.save(
+            results_tensor.flatten(), 
+            results_save_filename(args)
+        )
