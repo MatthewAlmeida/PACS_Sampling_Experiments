@@ -12,7 +12,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 
 from pacsmodeling import (
-    PACSLightning, results_save_filename
+    PACSLightning, results_save_filename, checkpoint_save_filename
 )
 
 """ 
@@ -83,13 +83,13 @@ if __name__ == "__main__":
             monitor="valid_loss",
             save_top_k=1,
             period=2,
-            filename=f"{args.experiment_name}-{args.random_seed}-" + "{epoch}"
+            filename=checkpoint_save_filename(args)
         )
     ]
 
     # Explicit logger configuration
     if args.no_logging:
-        # PL take False as an argument for the logger
+        # PL takes False as an argument for the logger
         # to mean "turn off logging".
         #
         # We do not add the LR monitor callback in this

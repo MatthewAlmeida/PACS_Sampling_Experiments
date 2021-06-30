@@ -6,5 +6,5 @@ from .pacs_lightning import (
     PACSLightning
 )
 from .pacs_utils import (
-    PACSMetadata, results_save_filename
+    PACSMetadata, results_save_filename, checkpoint_save_filename
 )

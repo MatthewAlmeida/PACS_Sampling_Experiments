@@ -1,3 +1,4 @@
+from argparse import Namespace
 from typing import Dict, List, Union
 
 import h5py
@@ -9,13 +10,24 @@ from dotenv import (
     load_dotenv, find_dotenv
 )
 
-def results_save_filename(argument_namespace):
-    if argument_namespace.use_sds:
-        sds_str = "sds"
+def _get_sds_str(arg_ns: Namespace) -> str:
+    if arg_ns.use_sds:
+        return "sds"
     else:
-        sds_str = "nosds"
+        return "nosds"
+
+def results_save_filename(arg_ns: Namespace) -> str:
+    sds_str = _get_sds_str(arg_ns)
+
     return Path(
-        f"results/{sds_str}/cm-random-seed-{argument_namespace.random_seed}-{sds_str}.pt"
+        f"results/{sds_str}/cm-random-seed-{arg_ns.random_seed}-{sds_str}.pt"
+    )
+
+def checkpoint_save_filename(arg_ns:Namespace) -> str:
+    sds_str = _get_sds_str(arg_ns)
+
+    return Path(
+        f"{arg_ns.experiment_name}-{arg_ns.random_seed}-{sds_str}-" + "{epoch}"
     )
 
 def resolve_PACS_root(pacs_root: str = None) -> Path:
