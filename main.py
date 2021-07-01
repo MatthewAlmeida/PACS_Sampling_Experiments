@@ -30,7 +30,7 @@ parser = ArgumentParser()
 
 parser.add_argument(
     "--experiment_name", type=str,
-    default="experiment"
+    default="Exp"
 )
 parser.add_argument(
     "--random_seed", type=int,

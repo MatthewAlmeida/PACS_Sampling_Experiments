@@ -16,7 +16,7 @@ def _get_sds_str(arg_ns: Namespace) -> str:
     else:
         return "nosds"
 
-def results_save_filename(arg_ns: Namespace) -> str:
+def results_save_filename(arg_ns: Namespace) -> Path:
     sds_str = _get_sds_str(arg_ns)
 
     return Path(
@@ -26,9 +26,8 @@ def results_save_filename(arg_ns: Namespace) -> str:
 def checkpoint_save_filename(arg_ns:Namespace) -> str:
     sds_str = _get_sds_str(arg_ns)
 
-    return Path(
-        f"{arg_ns.experiment_name}-{arg_ns.random_seed}-{sds_str}-" + "{epoch}"
-    )
+    return f"{sds_str}/{arg_ns.experiment_name}-{arg_ns.random_seed}-{sds_str}-" + "{epoch}"
+
 
 def resolve_PACS_root(pacs_root: str = None) -> Path:
     """
