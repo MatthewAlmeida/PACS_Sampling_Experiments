@@ -10,21 +10,21 @@ from dotenv import (
     load_dotenv, find_dotenv
 )
 
-def _get_sds_str(arg_ns: Namespace) -> str:
+def get_sds_str(arg_ns: Namespace) -> str:
     if arg_ns.use_sds:
         return "sds"
     else:
         return "nosds"
 
-def results_save_filename(arg_ns: Namespace) -> Path:
-    sds_str = _get_sds_str(arg_ns)
+def results_save_filename(arg_ns: Namespace, split:str) -> Path:
+    sds_str = get_sds_str(arg_ns)
 
     return Path(
-        f"results/{sds_str}/cm-random-seed-{arg_ns.random_seed}-{sds_str}.pt"
+        f"results/{sds_str}/cm-random-seed-{arg_ns.random_seed}-{sds_str}-{split}.pt"
     )
 
 def checkpoint_save_filename(arg_ns:Namespace) -> str:
-    sds_str = _get_sds_str(arg_ns)
+    sds_str = get_sds_str(arg_ns)
 
     return f"{sds_str}/{arg_ns.experiment_name}-{arg_ns.random_seed}-{sds_str}-" + "{epoch}"
 

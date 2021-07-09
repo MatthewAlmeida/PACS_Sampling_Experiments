@@ -12,7 +12,8 @@ import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 
 from pacsmodeling import (
-    PACSLightning, results_save_filename, checkpoint_save_filename
+    PACSLightning, results_save_filename, checkpoint_save_filename,
+    get_sds_str
 )
 
 """ 
@@ -101,7 +102,7 @@ if __name__ == "__main__":
         # logger)
         tb_logger = pl.loggers.TensorBoardLogger(
             args.log_dir,
-            name=args.experiment_name
+            name=f"{args.experiment_name}-{get_sds_str(args)}-{args.random_seed}"
         )
 
         callbacks.append(
@@ -121,6 +122,8 @@ if __name__ == "__main__":
     # Build model to spec defined in arguments
     model = PACSLightning(args)
 
+    breakpoint()
+
     # Train model
     trainer.fit(model)
 
@@ -129,13 +132,8 @@ if __name__ == "__main__":
         verbose=True
     )
 
-    results_tensor = model.confusion_matrix.compute()
+    cms = model.compute_confusion_matrices(save=args.save_cm)
 
-    # Write results to console
-    print(results_tensor)
-
-    if args.save_cm:
-        torch.save(
-            results_tensor.flatten(), 
-            results_save_filename(args)
-        )
+    for split, cm in cms.items():
+        print(f"{split}:")
+        print(cm)

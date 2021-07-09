@@ -1,18 +1,23 @@
 import os
 from argparse import ArgumentParser
 
-from .pacs_dataloader import (
-    PACSDatasetSingleDomain,
-    PACSDatasetMultipleDomain,
-    PACSSamplerSingleDomainPerBatch
-)
-
 import pytorch_lightning as pl
 
 import torch
 import torchmetrics
 import torchvision.models as models
 
+from typing import Dict, Union
+
+from .pacs_dataloader import (
+    PACSDatasetSingleDomain,
+    PACSDatasetMultipleDomain,
+    PACSSamplerSingleDomainPerBatch
+)
+
+from .pacs_utils import (
+    results_save_filename
+)
 
 class PACSLightning(pl.LightningModule):
     def __init__(self,
@@ -32,18 +37,26 @@ class PACSLightning(pl.LightningModule):
             out_features=self.hparam_namespace.n_classes
         )
 
+        """
+        Below objects need to be defined this way so that they exist
+        within the LightningModule (and not within containers within the
+        module - intial attempts to package them that way resulted in 
+        torch tensors on incorrect devices)
+        """
+
         # Create accuracy objects
         self.train_accuracy = torchmetrics.Accuracy()
         self.valid_accuracy = torchmetrics.Accuracy()
         self.test_accuracy = torchmetrics.Accuracy()
 
-        # Initialize confusion matrix metric.
-        self.confusion_matrix = torchmetrics.ConfusionMatrix(
-            num_classes = self.hparam_namespace.n_classes
-        )
+        # Initialize confusion matrix metrics.
+        self.train_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes = self.hparam_namespace.n_classes)
+        self.valid_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes = self.hparam_namespace.n_classes)
+        self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes = self.hparam_namespace.n_classes)
+
 
     @staticmethod
-    def add_model_specific_args(parent_parser):
+    def add_model_specific_args(parent_parser) -> None:
         """
         Takes in parser from main.py, then adds the additional
         parameters required by this module and gives back the
@@ -61,7 +74,7 @@ class PACSLightning(pl.LightningModule):
             default=7        
         )
         parser.add_argument("--learning_rate", type=float,
-            default=0.01
+            default=0.001
         )
         parser.add_argument("--dataloader_workers",type=int,
             default=0
@@ -113,35 +126,21 @@ class PACSLightning(pl.LightningModule):
                 drop_last=self.hparam_namespace.drop_last
             )
 
-    def _get_dataloader(self, split:str) -> torch.utils.data.DataLoader:
-        # If using only single domain sampling for training, pass the 
-        # _sds_sampler to the Dataloader as a BatchSampler. In all other 
-        # cases, pass no Sampler / BatchSampler.
-
-        if self.hparam_namespace.use_sds and split == "train":
-            print("Using single domain sampling...")
-            return torch.utils.data.DataLoader(
-                self._datasets[split], 
-                batch_sampler = self._sds_sampler,                
-                num_workers = self.hparam_namespace.dataloader_workers
-            )
-
-        return torch.utils.data.DataLoader(
-            self._datasets[split], 
-            batch_size = self.hparam_namespace.batch_size,
-            num_workers = self.hparam_namespace.dataloader_workers
-        )
-
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(), lr=self.hparam_namespace.learning_rate
         )
 
-        # 1000 is the default used by pytorch-lightning.
+        steps_per_epoch = len(self._datasets["train"]) // self.hparam_namespace.batch_size
+
+        print(f"Using value of steps per epoch: {steps_per_epoch}")
+        print(f"Using value max epochs: {self.trainer.max_epochs}")
+
+        # 1000 is the default number of epochs used by pytorch-lightning.
         scheduler = torch.optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr=self.hparam_namespace.learning_rate,
-            steps_per_epoch=len(self._datasets["train"]),
+            steps_per_epoch=steps_per_epoch,
             epochs=self.trainer.max_epochs
         )
 
@@ -152,8 +151,28 @@ class PACSLightning(pl.LightningModule):
             }
         }
 
+    def _get_dataloader(self, split:str) -> torch.utils.data.DataLoader:
+        # If using only single domain sampling for training, pass the 
+        # _sds_sampler to the Dataloader as a BatchSampler. In all other 
+        # cases, pass no Sampler / BatchSampler.
+
+        return torch.utils.data.DataLoader(
+            self._datasets[split], 
+            batch_size = self.hparam_namespace.batch_size,
+            num_workers = self.hparam_namespace.dataloader_workers
+        )
+
     def train_dataloader(self) -> torch.utils.data.DataLoader:
-        return self._get_dataloader("train")
+        if self.hparam_namespace.use_sds:
+            print("Using single domain sampling...")
+
+            return torch.utils.data.DataLoader(
+                self._datasets["train"], 
+                batch_sampler = self._sds_sampler,                
+                num_workers = self.hparam_namespace.dataloader_workers
+            )
+        else:
+            return self._get_dataloader("train")
 
     def val_dataloader(self) -> torch.utils.data.DataLoader:
         return self._get_dataloader("val")
@@ -170,13 +189,17 @@ class PACSLightning(pl.LightningModule):
         X, y = train_batch
         logits = self.forward(X.float())
 
-        # Compute loss value
+        # Compute loss value and predictions
         loss = self.cross_entropy_loss(logits, y)
-        
+        predicted_probabilites = torch.exp(logits)
+
         # Compute accuracy with torchmetrics objects. This function requires 
         # probabilities, so we pass the exponential of the logits
         # (due to how we're using the NLL loss and log_softmax)
-        self.train_accuracy(torch.exp(logits), y)
+        #
+        # PL handles calling .reset() at the end of each epoch.
+        self.train_accuracy(predicted_probabilites, y)
+        self.train_confusion_matrix(predicted_probabilites, y)
 
         self.log("train_loss", loss, prog_bar=True)
         self.log('train_acc', self.train_accuracy, on_step=True, on_epoch=False)
@@ -189,11 +212,13 @@ class PACSLightning(pl.LightningModule):
 
         # Compute validation loss 
         loss = self.cross_entropy_loss(logits, y)
+        predicted_probabilites = torch.exp(logits)
 
         # Compute validation accuracy. This function requires 
         # probabilities, so we pass the exponential of the logits
         # (due to how we're using the NLL loss and log_softmax)
-        self.valid_accuracy(torch.exp(logits), y)
+        self.valid_accuracy(predicted_probabilites, y)
+        self.valid_confusion_matrix(predicted_probabilites, y)
 
         self.log("valid_loss", loss)
         self.log('valid_acc', self.valid_accuracy, on_step=True, on_epoch=True)
@@ -203,12 +228,40 @@ class PACSLightning(pl.LightningModule):
         logits = self.forward(X.float())
 
         loss = self.cross_entropy_loss(logits, y)
-
         predicted_probabilities = torch.exp(logits)
 
         self.test_accuracy(predicted_probabilities, y)
+        self.test_confusion_matrix(predicted_probabilities, y)
 
         self.log("test_loss", loss)
         self.log('test_acc', self.test_accuracy)
 
-        self.confusion_matrix(predicted_probabilities, y)
+    def _compute_confusion_matrix(self, split):
+        # Batch sampling method isn't important here
+        # as we're doing exactly one pass over the data.
+        # this allows us to ignore the additional logic
+        # in train_dataloader 
+        dataloader = self._get_dataloader(split)
+
+        for (X, y) in dataloader:
+            pred_probs = torch.exp(self.forward(X.float()))
+            self.confusion_matrices[split](pred_probs, y)
+
+        return self.confusion_matrices[split].compute()
+
+    def compute_confusion_matrices(self, save=True) -> Dict[str, torch.Tensor]:
+        cms = {
+            "train": self.train_confusion_matrix.compute(),
+            "val": self.valid_confusion_matrix.compute(),
+            "test": self.test_confusion_matrix.compute()
+        }
+
+        if save:
+            for split, cm in cms.items():
+                torch.save(
+                    cm, 
+                    results_save_filename(self.hparam_namespace, split)
+                )
+
+        return cms
+
