@@ -12,8 +12,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import Trainer
 
 from pacsmodeling import (
-    PACSLightning, results_save_filename, checkpoint_save_filename,
-    get_sds_str
+    PACSLightning, checkpoint_save_filename, get_sds_str
 )
 
 """ 
@@ -121,8 +120,6 @@ if __name__ == "__main__":
     
     # Build model to spec defined in arguments
     model = PACSLightning(args)
-
-    breakpoint()
 
     # Train model
     trainer.fit(model)

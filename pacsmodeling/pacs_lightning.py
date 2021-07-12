@@ -95,9 +95,6 @@ class PACSLightning(pl.LightningModule):
 
         return torch.log_softmax(x, dim=1)
 
-    def cross_entropy_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        return torch.nn.functional.nll_loss(logits, labels)
-
     def setup(self, stage) -> None:
         self._datasets = {}
 
@@ -126,6 +123,9 @@ class PACSLightning(pl.LightningModule):
                 drop_last=self.hparam_namespace.drop_last
             )
 
+    def cross_entropy_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        return torch.nn.functional.nll_loss(logits, labels)
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             self.parameters(), lr=self.hparam_namespace.learning_rate
@@ -133,6 +133,11 @@ class PACSLightning(pl.LightningModule):
 
         steps_per_epoch = len(self._datasets["train"]) // self.hparam_namespace.batch_size
 
+        # Correct steps per epoch for incomplete batches if not dropping them.
+        if not self.hparam_namespace.drop_last:
+            steps_per_epoch += 1
+
+        print(f"Length of training dataloader: {len(self._datasets['train'])}")
         print(f"Using value of steps per epoch: {steps_per_epoch}")
         print(f"Using value max epochs: {self.trainer.max_epochs}")
 
@@ -147,15 +152,12 @@ class PACSLightning(pl.LightningModule):
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
-                "scheduler": scheduler
+                "scheduler": scheduler,
+                "interval":"step"
             }
         }
 
     def _get_dataloader(self, split:str) -> torch.utils.data.DataLoader:
-        # If using only single domain sampling for training, pass the 
-        # _sds_sampler to the Dataloader as a BatchSampler. In all other 
-        # cases, pass no Sampler / BatchSampler.
-
         return torch.utils.data.DataLoader(
             self._datasets[split], 
             batch_size = self.hparam_namespace.batch_size,
@@ -163,6 +165,10 @@ class PACSLightning(pl.LightningModule):
         )
 
     def train_dataloader(self) -> torch.utils.data.DataLoader:
+        # If using only single domain sampling for training, pass the 
+        # _sds_sampler to the Dataloader as a BatchSampler. In all other 
+        # cases, pass no Sampler / BatchSampler.
+
         if self.hparam_namespace.use_sds:
             print("Using single domain sampling...")
 
@@ -264,4 +270,3 @@ class PACSLightning(pl.LightningModule):
                 )
 
         return cms
-
