@@ -7,7 +7,7 @@ import torch
 import torchmetrics
 import torchvision.models as models
 
-from typing import Dict, Union
+from typing import Dict
 
 from .pacs_dataloader import (
     PACSDatasetSingleDomain,
@@ -42,6 +42,10 @@ class PACSLightning(pl.LightningModule):
         within the LightningModule (and not within containers within the
         module - intial attempts to package them that way resulted in 
         torch tensors on incorrect devices)
+
+        7/15/21: Not true. These cannot be in standard python lists/dicts
+        but can exist in data structures provided by torch, pl, or torchmetrics,
+        like ModuleList. Noted for future refactor.
         """
 
         # Create accuracy objects
@@ -50,9 +54,18 @@ class PACSLightning(pl.LightningModule):
         self.test_accuracy = torchmetrics.Accuracy()
 
         # Initialize confusion matrix metrics.
-        self.train_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes = self.hparam_namespace.n_classes)
-        self.valid_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes = self.hparam_namespace.n_classes)
-        self.test_confusion_matrix = torchmetrics.ConfusionMatrix(num_classes = self.hparam_namespace.n_classes)
+        self.train_confusion_matrix = torchmetrics.ConfusionMatrix(
+            num_classes = self.hparam_namespace.n_classes,
+            compute_on_step = False
+        )
+        self.valid_confusion_matrix = torchmetrics.ConfusionMatrix(
+            num_classes = self.hparam_namespace.n_classes,
+            compute_on_step = False
+        )
+        self.test_confusion_matrix = torchmetrics.ConfusionMatrix(
+            num_classes = self.hparam_namespace.n_classes,
+            compute_on_step = False
+        )
 
 
     @staticmethod
@@ -78,6 +91,12 @@ class PACSLightning(pl.LightningModule):
         )
         parser.add_argument("--dataloader_workers",type=int,
             default=0
+        )
+        parser.add_argument("--no_wd", action="store_true",
+            help="Use this flag to turn off weight decay for regularization."
+        )
+        parser.add_argument("--wd_param", type=float,
+            default=1e-2 #pytorch default
         )
         parser.add_argument("--drop_last", action="store_true",
             help="Use this flag to tell the sampler to drop incomplete batches."
@@ -127,9 +146,15 @@ class PACSLightning(pl.LightningModule):
         return torch.nn.functional.nll_loss(logits, labels)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.hparam_namespace.learning_rate
-        )
+        if self.hparam_namespace.no_wd:
+            optimizer = torch.optim.Adam(
+                self.parameters(), lr=self.hparam_namespace.learning_rate
+            )
+        else:
+            optimizer = torch.optim.AdamW(
+                self.parameters(), lr=self.hparam_namespace.learning_rate,
+                weight_decay=self.hparam_namespace.wd_param
+            )
 
         steps_per_epoch = len(self._datasets["train"]) // self.hparam_namespace.batch_size
 
@@ -195,20 +220,17 @@ class PACSLightning(pl.LightningModule):
         X, y = train_batch
         logits = self.forward(X.float())
 
-        # Compute loss value and predictions
+        # Compute loss value and predictions. We require 
+        # probabilities, so we pass the exponential of the logits
+        # (due to how we're using the NLL loss and log_softmax)
         loss = self.cross_entropy_loss(logits, y)
         predicted_probabilites = torch.exp(logits)
 
-        # Compute accuracy with torchmetrics objects. This function requires 
-        # probabilities, so we pass the exponential of the logits
-        # (due to how we're using the NLL loss and log_softmax)
-        #
-        # PL handles calling .reset() at the end of each epoch.
         self.train_accuracy(predicted_probabilites, y)
         self.train_confusion_matrix(predicted_probabilites, y)
 
         self.log("train_loss", loss, prog_bar=True)
-        self.log('train_acc', self.train_accuracy, on_step=True, on_epoch=False)
+        self.log('train_acc', self.train_accuracy, on_step=True, on_epoch=True)
 
         return loss
 

@@ -6,7 +6,6 @@ from dotenv import (
 from pathlib import Path
 
 import os
-import torch
 
 import pytorch_lightning as pl
 from pytorch_lightning import Trainer
