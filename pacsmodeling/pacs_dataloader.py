@@ -235,7 +235,8 @@ class PACSSamplerSingleDomainPerBatch(BatchSampler):
                 self.cursors[chosen_split] += self.batch_size
             else:
                 # If we're keeping the last few examples, yield the reduced batch.
+                # If not, simply set split inactive and continue.
                 if not self.drop_last:
                     yield self.splits[chosen_split][chosen_cursor:]
-                # We ran out of 
+                # We ran out of data in this split
                 self.active_splits.remove(chosen_split)

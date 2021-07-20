@@ -1,11 +1,12 @@
+import os
+
 from argparse import ArgumentParser
 
 from dotenv import (
     load_dotenv, find_dotenv
 )
 from pathlib import Path
-
-import os
+from random import randint
 
 import pytorch_lightning as pl
 from pytorch_lightning import Trainer
@@ -33,7 +34,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--random_seed", type=int,
-    default=55
+    default=randint(0, 10000)
 )
 parser.add_argument(
     "--log_dir", type=Path,
@@ -54,6 +55,10 @@ parser.add_argument(
 parser.add_argument(
     "--save_cm", action="store_true",
     help= "Use this flag to save the confusion matrix."
+)
+parser.add_argument(
+    "--test", action="store_true",
+    help="Pass this flag to evaluate the model on the test set."
 )
 # Go get necessary arguments from the modeling module
 # (See PACS_Modeling/PACS_Module.py)
@@ -123,10 +128,11 @@ if __name__ == "__main__":
     # Train model
     trainer.fit(model)
 
-    trainer.test(
-        ckpt_path="best",
-        verbose=True
-    )
+    if args.test:
+        trainer.test(
+            ckpt_path="best",
+            verbose=True
+        )
 
     cms = model.compute_confusion_matrices(save=args.save_cm)
 

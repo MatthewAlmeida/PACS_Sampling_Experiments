@@ -186,7 +186,8 @@ class PACSLightning(pl.LightningModule):
         return torch.utils.data.DataLoader(
             self._datasets[split], 
             batch_size = self.hparam_namespace.batch_size,
-            num_workers = self.hparam_namespace.dataloader_workers
+            num_workers = self.hparam_namespace.dataloader_workers,
+            drop_last = self.hparam_namespace.drop_last
         )
 
     def train_dataloader(self) -> torch.utils.data.DataLoader:
@@ -203,7 +204,13 @@ class PACSLightning(pl.LightningModule):
                 num_workers = self.hparam_namespace.dataloader_workers
             )
         else:
-            return self._get_dataloader("train")
+            return torch.utils.data.DataLoader(
+                self._datasets["train"], 
+                shuffle=True,
+                batch_size = self.hparam_namespace.batch_size,
+                num_workers = self.hparam_namespace.dataloader_workers,
+                drop_last = self.hparam_namespace.drop_last
+            )
 
     def val_dataloader(self) -> torch.utils.data.DataLoader:
         return self._get_dataloader("val")
@@ -281,8 +288,11 @@ class PACSLightning(pl.LightningModule):
         cms = {
             "train": self.train_confusion_matrix.compute(),
             "val": self.valid_confusion_matrix.compute(),
-            "test": self.test_confusion_matrix.compute()
         }
+
+        # Evaluation on the test set has been performed
+        if self.hparam_namespace.test:
+            cms["test"] = self.test_confusion_matrix.compute()
 
         if save:
             for split, cm in cms.items():
