@@ -131,6 +131,7 @@ dmypy.json
 # Pytorch-lightning
 
 lightning_logs/
+log_archive/
 checkpoints/
 results/
 *.pt

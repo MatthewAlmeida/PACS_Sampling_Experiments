@@ -6,12 +6,14 @@
 # matrix, to be collated for analysis later in a jupyter 
 # notebook.
 
-while read seed; do
+for i in {1..100}
+do
     python main.py \
-    --experiment_name="Exp" \
-    --random_seed=$seed \
+    --experiment_name="AP-LR1e04-WP1e-3" \
     --gpus=1 \
-    --no_logging \
     --save_cm \
-    --max_epochs=75 
-done < seeds_final.txt
+    --max_epochs=100 \
+    --learning_rate=0.0001 \
+     --wd_param=0.001 \
+    --test
+done
