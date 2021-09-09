@@ -14,8 +14,6 @@ TENSORBOARD_PORT=6006
 PACS_HOME=/data/PACS_Dataset
 ```
 
-```generate_seeds.sh``` creates a text file of random seeds for the experiments. ```run_experiments.sh``` loops through the random seeds (renamed to ```seeds_final.txt``` to prevent accidental overwrite) and runs one experiment for each seed. Storage warning: each experiment saves a model checkpoint that is ~134MB, so the full 200-model experiment will leave behind ~26 GB of checkpoint data in the provided directory.
-
 ---
 
 These experiments were inspired by a recent attempt to reproduce the PACS benchmarking results in a recent Domain Generalization paper. When looking through implementation details in that paper's repository, it became clear that their models were trained by drawing entire batches of data at once from the available training domains, rather than shuffling the whole training set together and drawing batches from that mix. That is, training was done by randomly drawing, for example, a full batch of photographs, then a full batch of sketches, then a full batch of paintings, and so on, rather than combining all of the paintings and sketches and photographs and drawing batches that contain some of each.
