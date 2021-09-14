@@ -15,6 +15,6 @@ do
     --use_sds \
     --max_epochs=100 \
     --learning_rate=0.0001 \
-     --wd_param=0.001 \
+    --wd_param=0.001 \
     --test
 done

@@ -296,9 +296,38 @@ class PACSLightning(pl.LightningModule):
 
         if save:
             for split, cm in cms.items():
-                torch.save(
-                    cm, 
-                    results_save_filename(self.hparam_namespace, split)
-                )
+                cm_filename = results_save_filename(self.hparam_namespace, split)
+
+                os.makedirs(os.path.dirname(cm_filename), exist_ok=True)
+
+                with open(cm_filename, "w") as f:
+                    torch.save(
+                        cm, cm_filename
+                    )
 
         return cms
+
+    def _log_confusion_matrix_as_image(self, split:str, cm:torch.Tensor) -> None:
+        if isinstance(self.logger.experiment,
+            torch.utils.tensorboard.writer.SummaryWriter
+        ):
+            self.logger.experiment.add_image(
+                split,
+                cm[None, :, :],
+                self.current_epoch,
+                dataformat="CHW" # image format is channel-height-width
+            )
+
+    def on_epoch_end(self):
+        cms = {
+            "train": self.train_confusion_matrix.compute(),
+            "val": self.valid_confusion_matrix.compute(),
+        }
+
+        for split, cm in cms.items():
+            self._log_confusion_matrix_as_image(
+                f"{split}_cm", cm
+            )
+
+        self.train_confusion_matrix.reset()
+        self.valid_confusion_matrix.reset()
