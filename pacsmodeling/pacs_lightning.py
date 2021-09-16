@@ -315,7 +315,7 @@ class PACSLightning(pl.LightningModule):
                 split,
                 cm[None, :, :],
                 self.current_epoch,
-                dataformat="CHW" # image format is channel-height-width
+                dataformats="CHW" # image format is channel-height-width
             )
 
     def on_epoch_end(self):
