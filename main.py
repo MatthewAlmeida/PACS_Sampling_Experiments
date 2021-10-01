@@ -134,8 +134,10 @@ if __name__ == "__main__":
             verbose=True
         )
 
+    """
     cms = model.compute_confusion_matrices(save=args.save_cm)
 
     for split, cm in cms.items():
         print(f"{split}:")
         print(cm)
+    """

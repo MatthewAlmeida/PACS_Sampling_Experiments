@@ -234,7 +234,11 @@ class PACSLightning(pl.LightningModule):
         predicted_probabilites = torch.exp(logits)
 
         self.train_accuracy(predicted_probabilites, y)
-        self.train_confusion_matrix(predicted_probabilites, y)
+
+        if self._last_epoch():
+            self.train_confusion_matrix(
+                torch.argmax(predicted_probabilites, dim=1), y
+            )
 
         self.log("train_loss", loss, prog_bar=True)
         self.log('train_acc', self.train_accuracy, on_step=True, on_epoch=True)
@@ -253,7 +257,11 @@ class PACSLightning(pl.LightningModule):
         # probabilities, so we pass the exponential of the logits
         # (due to how we're using the NLL loss and log_softmax)
         self.valid_accuracy(predicted_probabilites, y)
-        self.valid_confusion_matrix(predicted_probabilites, y)
+
+        if self._last_epoch():
+            self.valid_confusion_matrix(
+                torch.argmax(predicted_probabilites, dim=1), y
+            )
 
         self.log("valid_loss", loss)
         self.log('valid_acc', self.valid_accuracy, on_step=True, on_epoch=True)
@@ -270,19 +278,6 @@ class PACSLightning(pl.LightningModule):
 
         self.log("test_loss", loss)
         self.log('test_acc', self.test_accuracy)
-
-    def _compute_confusion_matrix(self, split):
-        # Batch sampling method isn't important here
-        # as we're doing exactly one pass over the data.
-        # this allows us to ignore the additional logic
-        # in train_dataloader 
-        dataloader = self._get_dataloader(split)
-
-        for (X, y) in dataloader:
-            pred_probs = torch.exp(self.forward(X.float()))
-            self.confusion_matrices[split](pred_probs, y)
-
-        return self.confusion_matrices[split].compute()
 
     def compute_confusion_matrices(self, save=True) -> Dict[str, torch.Tensor]:
         cms = {
@@ -318,16 +313,12 @@ class PACSLightning(pl.LightningModule):
                 dataformats="CHW" # image format is channel-height-width
             )
 
+    def _last_epoch(self) -> bool:
+        return (self.current_epoch == self.hparam_namespace.max_epochs - 1)
+
     def on_epoch_end(self):
-        cms = {
-            "train": self.train_confusion_matrix.compute(),
-            "val": self.valid_confusion_matrix.compute(),
-        }
+        if self._last_epoch(): # current epochs are 0-indexed
+            self.compute_confusion_matrices(save=self.hparam_namespace.save_cm)
 
-        for split, cm in cms.items():
-            self._log_confusion_matrix_as_image(
-                f"{split}_cm", cm
-            )
-
-        self.train_confusion_matrix.reset()
-        self.valid_confusion_matrix.reset()
+        #self.train_confusion_matrix.reset()
+        #self.valid_confusion_matrix.reset()
