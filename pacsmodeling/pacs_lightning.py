@@ -16,7 +16,8 @@ from .pacs_dataloader import (
 )
 
 from .pacs_utils import (
-    results_save_filename
+    results_save_filename,
+    results_tensor_save_filename
 )
 
 class PACSLightning(pl.LightningModule):
@@ -66,6 +67,17 @@ class PACSLightning(pl.LightningModule):
             num_classes = self.hparam_namespace.n_classes,
             compute_on_step = False
         )
+
+        # Build tensors of size (epochs, classes, classes) to store 
+        # epoch-wise confusion matrices. Populated on train and val 
+        # epoch end.
+
+        self.train_cm_tensor = torch.zeros(
+            self.hparam_namespace.max_epochs, self.hparam_namespace.n_classes,
+            self.hparam_namespace.n_classes
+        )
+
+        self.val_cm_tensor = torch.zeros_like(self.train_cm_tensor)
 
 
     @staticmethod
@@ -234,11 +246,9 @@ class PACSLightning(pl.LightningModule):
         predicted_probabilites = torch.exp(logits)
 
         self.train_accuracy(predicted_probabilites, y)
-
-        if self._last_epoch():
-            self.train_confusion_matrix(
-                torch.argmax(predicted_probabilites, dim=1), y
-            )
+        self.train_confusion_matrix(
+            torch.argmax(predicted_probabilites, dim=1), y
+        )
 
         self.log("train_loss", loss, prog_bar=True)
         self.log('train_acc', self.train_accuracy, on_step=True, on_epoch=True)
@@ -258,10 +268,9 @@ class PACSLightning(pl.LightningModule):
         # (due to how we're using the NLL loss and log_softmax)
         self.valid_accuracy(predicted_probabilites, y)
 
-        if self._last_epoch():
-            self.valid_confusion_matrix(
-                torch.argmax(predicted_probabilites, dim=1), y
-            )
+        self.valid_confusion_matrix(
+            torch.argmax(predicted_probabilites, dim=1), y
+        )
 
         self.log("valid_loss", loss)
         self.log('valid_acc', self.valid_accuracy, on_step=True, on_epoch=True)
@@ -278,6 +287,23 @@ class PACSLightning(pl.LightningModule):
 
         self.log("test_loss", loss)
         self.log('test_acc', self.test_accuracy)
+
+    def zero_test_confusion_matrix(self, save:bool=True, split:str="test") -> None:
+        """Does a manual clear of the testing confusion matrix.
+        Allows use of trainer.test(model="best", dataloader = ...) in
+        main.py to get the confusion matrices of the best model.
+        """
+        if save:
+            cm_filename = results_save_filename(self.hparam_namespace, split)
+
+            os.makedirs(os.path.dirname(cm_filename), exist_ok=True)
+
+            with open(cm_filename, "w") as f:
+                torch.save(
+                    self.test_confusion_matrix.compute(), cm_filename
+                )
+
+        self.test_confusion_matrix.reset()
 
     def compute_confusion_matrices(self, save=True) -> Dict[str, torch.Tensor]:
         cms = {
@@ -302,7 +328,26 @@ class PACSLightning(pl.LightningModule):
 
         return cms
 
+    def save_confusion_matrix_tensors(self):
+        for split in ("train", "val"):
+            cm_t_filename = results_tensor_save_filename(self.hparam_namespace, split)
+
+            os.makedirs(os.path.dirname(cm_t_filename), exist_ok=True)
+
+            with open(cm_t_filename, "w") as f:
+                torch.save(
+                    getattr(self, f"{split}_cm_tensor"), cm_t_filename
+                )
+
     def _log_confusion_matrix_as_image(self, split:str, cm:torch.Tensor) -> None:
+        """Currently unused function that logs a tensor to
+        tensorboard as an image file.
+
+        Args:
+            split (str): String in ["train", "val", "test"], to properly
+                label logged image in dashboard.
+            cm (torch.Tensor): Tensor to write to tensorboard as image.
+        """
         if isinstance(self.logger.experiment,
             torch.utils.tensorboard.writer.SummaryWriter
         ):
@@ -313,12 +358,16 @@ class PACSLightning(pl.LightningModule):
                 dataformats="CHW" # image format is channel-height-width
             )
 
-    def _last_epoch(self) -> bool:
-        return (self.current_epoch == self.hparam_namespace.max_epochs - 1)
+    def training_epoch_end(self, training_step_outputs):
+        # Add current epoch's confusion matrix to the tensor 
+        # keeping that data.
+        self.train_cm_tensor[self.current_epoch] = self.train_confusion_matrix.compute()
 
-    def on_epoch_end(self):
-        if self._last_epoch(): # current epochs are 0-indexed
-            self.compute_confusion_matrices(save=self.hparam_namespace.save_cm)
+        # Reset the confusion matrix at end of epoch - otherwise,
+        # CM will be a mix of predictions made at different stages of 
+        # training and its value will be limited.
+        self.train_confusion_matrix.reset()
 
-        #self.train_confusion_matrix.reset()
-        #self.valid_confusion_matrix.reset()
+    def validation_epoch_end(self, valid_step_outputs):
+        self.val_cm_tensor[self.current_epoch] = self.valid_confusion_matrix.compute()
+        self.valid_confusion_matrix.reset()
