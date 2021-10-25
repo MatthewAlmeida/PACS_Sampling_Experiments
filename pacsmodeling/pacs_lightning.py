@@ -79,6 +79,10 @@ class PACSLightning(pl.LightningModule):
 
         self.val_cm_tensor = torch.zeros_like(self.train_cm_tensor)
 
+        self.current_test_split_name = "test" # Because we're using PL's test
+                                    # functionality to run post-hoc train
+                                    # and validation metrics on the 
+
 
     @staticmethod
     def add_model_specific_args(parent_parser) -> None:

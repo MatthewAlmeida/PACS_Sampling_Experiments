@@ -145,6 +145,8 @@ if __name__ == "__main__":
 
     model.zero_test_confusion_matrix(save=args.save_cm, split="val")
 
+    # Save epoch-by-epoch results as confusion matrix tensors of shape
+    # (epochs, n_labels, n_labels)
     if args.save_cm:
         model.save_confusion_matrix_tensors()
 
