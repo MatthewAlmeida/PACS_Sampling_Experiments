@@ -23,6 +23,13 @@ def results_save_filename(arg_ns: Namespace, split:str) -> Path:
         f"results/{sds_str}/cm-random-seed-{arg_ns.random_seed}-{sds_str}-{split}.pt"
     )
 
+def results_tensor_save_filename(arg_ns: Namespace, split:str) -> Path:
+    sds_str = get_sds_str(arg_ns)
+
+    return Path(
+        f"results/{sds_str}/cm-tensor-random-seed-{arg_ns.random_seed}-{sds_str}-{split}-best.pt"
+    )
+
 def checkpoint_save_filename(arg_ns:Namespace) -> str:
     sds_str = get_sds_str(arg_ns)
 

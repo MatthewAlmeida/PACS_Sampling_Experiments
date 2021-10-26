@@ -86,7 +86,7 @@ if __name__ == "__main__":
             dirpath=args.chkpt_dir,
             monitor="valid_loss",
             save_top_k=1,
-            period=2,
+            every_n_epochs=2,
             filename=checkpoint_save_filename(args)
         )
     ]
@@ -128,14 +128,33 @@ if __name__ == "__main__":
     # Train model
     trainer.fit(model)
 
-    if args.test:
+    # Check and save best model confusion matrix for the training set.
+    trainer.test(
+        ckpt_path="best",
+        dataloaders=model.train_dataloader(),
+        verbose=True
+    )
+
+    model.zero_test_confusion_matrix(save=args.save_cm, split="train")
+
+    trainer.test(
+        ckpt_path="best",
+        dataloaders=model.val_dataloader(),
+        verbose=True
+    )
+
+    model.zero_test_confusion_matrix(save=args.save_cm, split="val")
+
+    # Save epoch-by-epoch results as confusion matrix tensors of shape
+    # (epochs, n_labels, n_labels)
+    if args.save_cm:
+        model.save_confusion_matrix_tensors()
+
+    if args.test: # Run the test set.
         trainer.test(
             ckpt_path="best",
             verbose=True
         )
 
-    cms = model.compute_confusion_matrices(save=args.save_cm)
-
-    for split, cm in cms.items():
-        print(f"{split}:")
-        print(cm)
+        model.zero_test_confusion_matrix(save=args.save_cm, split="test")
+        
