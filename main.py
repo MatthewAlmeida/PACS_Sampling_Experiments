@@ -157,5 +157,4 @@ if __name__ == "__main__":
         )
 
         model.zero_test_confusion_matrix(save=args.save_cm, split="test")
-
         
