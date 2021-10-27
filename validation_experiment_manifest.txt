@@ -1,16 +1,4 @@
---experiment_name=100ep1e-2LR1e-1WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.01 --wd_param=0.1 --use_sds
---experiment_name=100ep1e-2LR1WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.01 --wd_param=1.0 --use_sds
---experiment_name=100ep1e-2LR1e-2WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.01 --wd_param=0.01 --use_sds
---experiment_name=100ep1e-2LR1e-3WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.01 --wd_param=0.001 --use_sds
---experiment_name=100ep1e-3LR1e-1WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.001 --wd_param=0.1 --use_sds
---experiment_name=100ep1e-3LR1WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.001 --wd_param=1.0 --use_sds
---experiment_name=100ep1e-3LR1e-2WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.001 --wd_param=0.01 --use_sds
---experiment_name=100ep1e-3LR1e-3WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.001 --wd_param=0.001 --use_sds
---experiment_name=100ep1e-1LR1e-1WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.1 --wd_param=0.1 --use_sds
---experiment_name=100ep1e-1LR1WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.1 --wd_param=1.0 --use_sds
---experiment_name=100ep1e-1LR1e-2WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.1 --wd_param=0.01 --use_sds
---experiment_name=100ep1e-1LR1e-3WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.1 --wd_param=0.001 --use_sds
---experiment_name=100ep1e-4LR1e-1WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.0001 --wd_param=0.1 --use_sds
---experiment_name=100ep1e-4LR1WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.0001 --wd_param=1.0 --use_sds
---experiment_name=100ep1e-41LR1e-2WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.0001 --wd_param=0.01 --use_sds
---experiment_name=100ep1e-4LR1e-3WD --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.0001 --wd_param=0.001 --use_sds
+--experiment_name=EXP-WD-RLROP-LR005-005 --random_seed=567 --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.005 --wd_param=0.05 --use_sds --test
+--experiment_name=EXP-WD-RLROP-LR005-001 --random_seed=1067 --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.005 --wd_param=0.01 --use_sds --test
+--experiment_name=EXP-WD-RLROP-LR005-0005 --random_seed=1567 --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.005 --wd_param=0.005 --use_sds --test
+--experiment_name=EXP-WD-RLROP-LR005-0001 --random_seed=2067 --gpus=1 --save_cm --max_epochs=100 --learning_rate=0.005 --wd_param=0.001 --use_sds --test
