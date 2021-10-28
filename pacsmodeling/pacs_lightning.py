@@ -83,7 +83,6 @@ class PACSLightning(pl.LightningModule):
                                     # functionality to run post-hoc train
                                     # and validation metrics on the 
 
-
     @staticmethod
     def add_model_specific_args(parent_parser) -> None:
         """
@@ -120,6 +119,11 @@ class PACSLightning(pl.LightningModule):
         parser.add_argument(
             "--use_sds", action="store_true",
             help="Use this flag to activate single domain sampling."
+        )
+        parser.add_argument(
+            "--optimizer", type=str,
+            help="Use to select optimizer, in \{'1cycle', 'reduce'\}",
+            default="1cycle"
         )
 
         return parser
@@ -182,21 +186,45 @@ class PACSLightning(pl.LightningModule):
         print(f"Using value of steps per epoch: {steps_per_epoch}")
         print(f"Using value max epochs: {self.trainer.max_epochs}")
 
-        # 1000 is the default number of epochs used by pytorch-lightning.
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=self.hparam_namespace.learning_rate,
-            steps_per_epoch=steps_per_epoch,
-            epochs=self.trainer.max_epochs
-        )
+        out_dict = {}
 
-        return {
-            "optimizer": optimizer,
-            "lr_scheduler": {
-                "scheduler": scheduler,
-                "interval":"step"
+        if self.hparam_namespace.optimizer == "reduce":
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer
+            )
+
+            interval = "epoch"
+            opt_str = "ReduceLROnPlateau"
+
+            out_dict = {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "monitor": "valid_loss"
+                }    
             }
-        }
+        else:
+            scheduler = torch.optim.lr_scheduler.OneCycleLR(
+                optimizer,
+                max_lr=self.hparam_namespace.learning_rate,
+                steps_per_epoch=steps_per_epoch,
+                epochs=self.trainer.max_epochs
+            )
+
+            interval = "step"
+            opt_str = "OneCycleLR"
+
+            out_dict = {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "interval": "step"
+                }
+            }
+
+        print(f"Learning rate schedule strategy set to: {opt_str}")        
+
+        return out_dict
 
     def _get_dataloader(self, split:str) -> torch.utils.data.DataLoader:
         return torch.utils.data.DataLoader(
