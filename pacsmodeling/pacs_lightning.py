@@ -38,6 +38,9 @@ class PACSLightning(pl.LightningModule):
             out_features=self.hparam_namespace.n_classes
         )
 
+        self._test_log_acc_string = "test_acc"
+        self._test_log_loss_string = "test_loss"
+
         """
         Below objects need to be defined this way so that they exist
         within the LightningModule (and not within containers within the
@@ -317,8 +320,8 @@ class PACSLightning(pl.LightningModule):
         self.test_accuracy(predicted_probabilities, y)
         self.test_confusion_matrix(predicted_probabilities, y)
 
-        self.log("test_loss", loss)
-        self.log('test_acc', self.test_accuracy)
+        self.log(self._test_log_loss_string, loss)
+        self.log(self._test_log_acc_string, self.test_accuracy)
 
     def zero_test_confusion_matrix(self, save:bool=True, split:str="test") -> None:
         """Does a manual clear of the testing confusion matrix.
@@ -389,6 +392,10 @@ class PACSLightning(pl.LightningModule):
                 self.current_epoch,
                 dataformats="CHW" # image format is channel-height-width
             )
+
+    def set_test_log_strings(self, split_name:str):
+        self._test_log_acc_string = f"{split_name}_acc"
+        self._test_log_loss_string = f"{split_name}_loss"
 
     def training_epoch_end(self, training_step_outputs):
         # Add current epoch's confusion matrix to the tensor 

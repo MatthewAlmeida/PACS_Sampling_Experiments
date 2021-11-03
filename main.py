@@ -128,6 +128,8 @@ if __name__ == "__main__":
     # Train model
     trainer.fit(model)
 
+    model.set_test_log_strings("train")
+
     # Check and save best model confusion matrix for the training set.
     trainer.test(
         ckpt_path="best",
@@ -137,6 +139,8 @@ if __name__ == "__main__":
 
     model.zero_test_confusion_matrix(save=args.save_cm, split="train")
 
+
+    model.set_test_log_strings("valid")
     trainer.test(
         ckpt_path="best",
         dataloaders=model.val_dataloader(),
@@ -145,6 +149,8 @@ if __name__ == "__main__":
 
     model.zero_test_confusion_matrix(save=args.save_cm, split="val")
 
+    model.set_test_log_strings("test")
+    
     # Save epoch-by-epoch results as confusion matrix tensors of shape
     # (epochs, n_labels, n_labels)
     if args.save_cm:
